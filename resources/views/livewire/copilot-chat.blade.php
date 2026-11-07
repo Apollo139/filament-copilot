@@ -7,6 +7,7 @@
     isStreaming: false,
     streamedContent: '',
     pendingComplete: false,
+    truncated: false,
     pendingApprovals: [],
     toolCalls: [],
     _cleanups: [],
@@ -115,6 +116,7 @@
         this.toolCalls = [];
         this.pendingApprovals = [];
         this.pendingComplete = false;
+        this.truncated = false;
 
         try {
             const response = await fetch(params.streamUrl, {
@@ -206,6 +208,9 @@
                                     this.streamedContent = '';
                                     this.toolCalls = [];
                                     break;
+                                case 'truncated':
+                                    this.truncated = true;
+                                    break;
                                 case 'done':
                                     // Absent on error streams, and on servers
                                     // running an older package release.
@@ -227,7 +232,7 @@
             if (this.pendingApprovals.length) {
                 this.isStreaming = false;
                 return;
-            } else if (this.streamedContent || this.toolCalls.length) {
+            } else if (this.streamedContent || this.toolCalls.length || this.truncated) {
                 this.pendingComplete = true;
                 this.isStreaming = false;
 
@@ -237,6 +242,7 @@
                     newConversationId: newConversationId,
                     toolCalls: this.toolCalls.length ? JSON.parse(JSON.stringify(this.toolCalls)) : null,
                     messageId: assistantMessageId,
+                    truncated: this.truncated,
                 });
 
                 // Execute pending navigation after stream completes

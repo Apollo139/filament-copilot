@@ -33,6 +33,7 @@ return [
     'rate_limit_exceeded' => 'You have exceeded the rate limit. Please try again later.',
     'error_occurred' => 'An error occurred',
     'stream_error' => 'Something went wrong. Please try again. (ref: :ref)',
+    'response_truncated' => 'This response was cut off because it reached the maximum length.',
 
     // Message Feedback
     'feedback_helpful' => 'Helpful',

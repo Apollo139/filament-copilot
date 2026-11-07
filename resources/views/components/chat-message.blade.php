@@ -97,6 +97,12 @@
                     'allow_unsafe_links' => false,
                 ]) !!}
             </div>
+            @if (! empty($msg['truncated']))
+                <p class="flex items-center gap-1.5 text-xs text-warning-700 dark:text-warning-300 {{ filled($msg['content'] ?? null) ? 'mt-2' : '' }}">
+                    <x-filament::icon icon="heroicon-o-exclamation-triangle" class="w-3.5 h-3.5 shrink-0" />
+                    <span>{{ __('filament-copilot::filament-copilot.response_truncated') }}</span>
+                </p>
+            @endif
         </div>
         @if ($showFeedback)
             @php

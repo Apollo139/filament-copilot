@@ -20,6 +20,7 @@ use Filament\Facades\Filament;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
+use Laravel\Ai\Responses\Data\FinishReason;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StreamController
@@ -153,6 +154,7 @@ class StreamController
 
                 $responseText = '';
                 $usage = null;
+                $finishReason = null;
                 $shouldLogToolCalls = config('filament-copilot.audit.enabled', true)
                     && config('filament-copilot.audit.log_tool_calls', true);
 
@@ -269,6 +271,7 @@ class StreamController
                         $this->sendSseEvent('tool_approval_request', ['approvals' => $pendingApprovals]);
                     } elseif ($event instanceof \Laravel\Ai\Streaming\Events\StreamEnd) {
                         $usage = $event->usage;
+                        $finishReason = $event->reason;
                     }
                 }
 
@@ -293,6 +296,7 @@ class StreamController
                     content: $responseText,
                     inputTokens: $usage->promptTokens ?? 0,
                     outputTokens: $usage->completionTokens ?? 0,
+                    metadata: $finishReason !== null ? ['finish_reason' => $finishReason] : null,
                 );
 
                 // Record token usage
@@ -320,6 +324,15 @@ class StreamController
                     'input_tokens' => $usage->promptTokens ?? 0,
                     'output_tokens' => $usage->completionTokens ?? 0,
                 ]);
+
+                // A reply that ran out of output tokens is cut off mid-way (or,
+                // for a reasoning model that spent the budget thinking, empty).
+                // Say so, rather than letting it pass for a complete answer.
+                if ($finishReason === FinishReason::Length->value) {
+                    $this->sendSseEvent('truncated', [
+                        'message' => __('filament-copilot::filament-copilot.response_truncated'),
+                    ]);
+                }
 
                 // The persisted assistant message id lets the chat component
                 // reference the reply it just streamed — for message feedback,

@@ -103,7 +103,7 @@ class CopilotChat extends Component
      * reloaded.
      */
     #[On('copilot-stream-complete')]
-    public function handleStreamComplete(string $content, ?string $newConversationId = null, ?array $toolCalls = null, ?string $messageId = null): void
+    public function handleStreamComplete(string $content, ?string $newConversationId = null, ?array $toolCalls = null, ?string $messageId = null, bool $truncated = false): void
     {
         if ($newConversationId && ! $this->conversationId) {
             $this->conversationId = $newConversationId;
@@ -128,6 +128,10 @@ class CopilotChat extends Component
             'role' => 'assistant',
             'content' => $content,
         ];
+
+        if ($truncated) {
+            $assistantMessage['truncated'] = true;
+        }
 
         // Not trusted as proof of ownership — it only decides whether the
         // buttons render. Every write still goes through submitRating(), which

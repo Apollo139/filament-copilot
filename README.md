@@ -738,6 +738,13 @@ This adds a `copilotConversations()` polymorphic relationship to your user model
 5. The response streams back via **Server-Sent Events** (SSE) — text deltas, tool calls, and tool results are sent as they happen.
 6. The Livewire component renders the streamed response in real-time.
 
+If the model stops because it reached its output token limit, the stream sends a `truncated` event
+before `done`, the reply is stored with `finish_reason` in its `metadata`, and the chat shows a short
+"cut off" notice under it — so a partial (or, for a reasoning model, empty) answer does not pass for a
+complete one. Apps that have published the package's views need to re-sync
+`livewire/copilot-chat.blade.php` and `components/chat-message.blade.php` to show the notice; the
+stored metadata does not depend on the views.
+
 ### Agent & Context Building
 
 The `ContextBuilder` assembles the system prompt from multiple sources:

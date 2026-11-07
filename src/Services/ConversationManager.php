@@ -15,6 +15,7 @@ use Illuminate\Support\Collection;
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Messages\UserMessage;
+use Laravel\Ai\Responses\Data\FinishReason;
 
 class ConversationManager
 {
@@ -142,6 +143,7 @@ class ConversationManager
                     // against, and the rating to render the active thumb.
                     'id' => $message->id,
                     'rating' => $message->rating?->value,
+                    'truncated' => ($message->metadata['finish_reason'] ?? null) === FinishReason::Length->value,
                 ]];
 
                 foreach ($message->toolCalls->sortBy('created_at') as $toolCall) {
