@@ -152,6 +152,12 @@ class StreamController
                 });
 
                 $responseText = '';
+                // Set once a tool call or result ends a step, so the next
+                // step's text starts a new paragraph instead of gluing onto
+                // the previous step's last sentence (and breaking Markdown).
+                // Whitespace-only deltas pass through and leave it set; the
+                // separator goes before the next step's first real text.
+                $stepEnded = false;
                 $usage = null;
                 $shouldLogToolCalls = config('filament-copilot.audit.enabled', true)
                     && config('filament-copilot.audit.log_tool_calls', true);
@@ -180,9 +186,18 @@ class StreamController
                 // Stream real-time chunks from the AI provider
                 foreach ($streamResponse as $event) {
                     if ($event instanceof \Laravel\Ai\Streaming\Events\TextDelta) {
-                        $responseText .= $event->delta;
-                        $this->sendSseEvent('chunk', ['text' => $event->delta]);
+                        $text = $event->delta;
+
+                        if ($stepEnded && trim($text) !== '') {
+                            $text = $this->stepSeparator($responseText, $text).$text;
+                            $stepEnded = false;
+                        }
+
+                        $responseText .= $text;
+                        $this->sendSseEvent('chunk', ['text' => $text]);
                     } elseif ($event instanceof \Laravel\Ai\Streaming\Events\ToolCall) {
+                        $stepEnded = true;
+
                         $this->sendSseEvent('tool_call', [
                             'tool_id' => $event->toolCall->id,
                             'tool_name' => $event->toolCall->name,
@@ -198,6 +213,8 @@ class StreamController
                             ]);
                         }
                     } elseif ($event instanceof \Laravel\Ai\Streaming\Events\ToolResult) {
+                        $stepEnded = true;
+
                         $rawResult = is_string($event->toolResult->result) ? $event->toolResult->result : json_encode($event->toolResult->result);
 
                         $this->sendSseEvent('tool_result', [
@@ -376,5 +393,23 @@ class StreamController
             ob_flush();
         }
         flush();
+    }
+
+    /**
+     * The newlines that put a step's text one blank line after the previous
+     * step's, counting the newlines either side already brings — so "A.\n"
+     * followed by "B." gets one more, and "A.\n\n" gets none. Nothing goes
+     * before the first text of a turn.
+     */
+    protected function stepSeparator(string $previousText, string $nextText): string
+    {
+        if (trim($previousText) === '') {
+            return '';
+        }
+
+        $newlines = substr_count(substr($previousText, strlen(rtrim($previousText))), "\n")
+            + substr_count(substr($nextText, 0, strlen($nextText) - strlen(ltrim($nextText))), "\n");
+
+        return str_repeat("\n", max(0, 2 - $newlines));
     }
 }
