@@ -22,6 +22,7 @@ Filament Copilot integrates directly into your Filament panels with a chat inter
   - [Step 3 — Manual Installation (Alternative)](#step-3--manual-installation-alternative)
 - [Configuration](#configuration)
   - [AI Provider & Model](#ai-provider--model)
+  - [Agent Options](#agent-options)
   - [Rate Limiting](#rate-limiting)
   - [Token Budget](#token-budget)
   - [Audit Logging](#audit-logging)
@@ -235,6 +236,29 @@ The configuration file is published to `config/filament-copilot.php`. Here is a 
 ```
 
 Set via your `.env` file. See [Supported AI Providers](#supported-ai-providers) for the full list.
+
+### Agent Options
+
+```php
+'agent' => [
+    'max_tokens'  => 4096,
+    'temperature' => 0.3,
+    'timeout'     => 120,
+],
+```
+
+- **`max_tokens`** — Maximum output tokens per model call. Reasoning ("thinking") models spend
+  their reasoning tokens out of the same budget, so a model that thinks at length can use it all
+  up and return a short or empty answer — raise it for those models. `null` leaves it to the provider.
+- **`temperature`** — Sampling temperature. `null` leaves it to the provider, for models that
+  reject a custom temperature.
+- **`timeout`** — HTTP timeout, in seconds, for each call to the AI provider. `null` falls back
+  to 120.
+
+These are read by `CopilotAgent::maxTokens()`, `temperature()` and `timeout()`; an agent class
+extending `CopilotAgent` can override those methods instead. An extending agent that declares its
+own `#[MaxTokens]`, `#[Temperature]` or `#[Timeout]` attribute keeps it — the attribute takes
+precedence over the config value.
 
 ### Rate Limiting
 
@@ -708,7 +732,7 @@ This adds a `copilotConversations()` polymorphic relationship to your user model
 │                          │                           │
 │  ┌───────────────────────▼───────────────────────┐  │
 │  │              CopilotAgent                      │  │
-│  │  Temperature: 0.3 | MaxTokens: 4096           │  │
+│  │  Temperature / MaxTokens / Timeout (config)   │  │
 │  │  Middleware: Audit + RateLimit                 │  │
 │  └───────────────────────┬───────────────────────┘  │
 │                          │                           │

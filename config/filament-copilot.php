@@ -22,9 +22,41 @@ return [
     |--------------------------------------------------------------------------
     | Agent Behavior
     |--------------------------------------------------------------------------
+    | An agent class extending CopilotAgent that declares its own #[MaxTokens],
+    | #[Temperature] or #[Timeout] attribute keeps it: the attribute takes
+    | precedence over the values below.
     */
 
     'agent' => [
+        /*
+        |----------------------------------------------------------------
+        | Max Tokens
+        |----------------------------------------------------------------
+        | Maximum output tokens per model call. Reasoning ("thinking") models
+        | spend their reasoning tokens out of this same budget, so raise it if
+        | answers come back cut off or empty. Null leaves it to the provider.
+        */
+
+        'max_tokens' => 4096,
+
+        /*
+        |----------------------------------------------------------------
+        | Temperature
+        |----------------------------------------------------------------
+        | Sampling temperature. Null leaves it to the provider — needed for
+        | models that reject a custom temperature.
+        */
+
+        'temperature' => 0.3,
+
+        /*
+        |----------------------------------------------------------------
+        | Timeout
+        |----------------------------------------------------------------
+        | HTTP timeout, in seconds, for each call to the AI provider. Null
+        | falls back to 120.
+        */
+
         'timeout' => 120,
     ],
 

@@ -9,6 +9,7 @@ use EslamRedaDiv\FilamentCopilot\Agent\Middleware\RateLimitMiddleware;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Attributes\Temperature;
+use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasMiddleware;
@@ -17,8 +18,6 @@ use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Promptable;
 use Stringable;
 
-#[Temperature(0.3)]
-#[MaxTokens(4096)]
 class CopilotAgent implements Agent, Conversational, HasMiddleware, HasTools
 {
     use Promptable;
@@ -102,6 +101,69 @@ class CopilotAgent implements Agent, Conversational, HasMiddleware, HasTools
     public function tools(): iterable
     {
         return $this->tools;
+    }
+
+    /**
+     * Maximum output tokens per model call, from `filament-copilot.agent.max_tokens`.
+     *
+     * Methods rather than #[MaxTokens] / #[Temperature] attributes: laravel/ai
+     * reads attributes off the concrete class, and PHP attributes are not
+     * inherited, so an app agent extending this one used to silently lose both.
+     * An extending agent that declares the attribute itself keeps it — it
+     * takes precedence over the config value.
+     */
+    public function maxTokens(): ?int
+    {
+        if (($declared = $this->declaredAttributeValue(MaxTokens::class)) !== null) {
+            return (int) $declared;
+        }
+
+        $maxTokens = config('filament-copilot.agent.max_tokens', 4096);
+
+        return $maxTokens === null ? null : (int) $maxTokens;
+    }
+
+    /**
+     * Sampling temperature, from `filament-copilot.agent.temperature`.
+     *
+     * A #[Temperature] attribute on an extending agent takes precedence.
+     */
+    public function temperature(): ?float
+    {
+        if (($declared = $this->declaredAttributeValue(Temperature::class)) !== null) {
+            return (float) $declared;
+        }
+
+        $temperature = config('filament-copilot.agent.temperature', 0.3);
+
+        return $temperature === null ? null : (float) $temperature;
+    }
+
+    /**
+     * Provider HTTP timeout in seconds, from `filament-copilot.agent.timeout`.
+     *
+     * A #[Timeout] attribute on an extending agent takes precedence. Null
+     * falls back to the 120 second default rather than to no timeout at all.
+     */
+    public function timeout(): int
+    {
+        if (($declared = $this->declaredAttributeValue(Timeout::class)) !== null) {
+            return (int) $declared;
+        }
+
+        return (int) (config('filament-copilot.agent.timeout') ?? 120);
+    }
+
+    /**
+     * The value of a laravel/ai option attribute declared on the concrete agent class.
+     *
+     * @param  class-string  $attribute
+     */
+    protected function declaredAttributeValue(string $attribute): int|float|null
+    {
+        $attributes = (new \ReflectionClass($this))->getAttributes($attribute);
+
+        return $attributes === [] ? null : $attributes[0]->newInstance()->value;
     }
 
     public function middleware(): array
