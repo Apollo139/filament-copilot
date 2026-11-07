@@ -136,7 +136,7 @@ Filament Copilot integrates directly into your Filament panels with a chat inter
 | Laravel                      | 11.x / 12.x                   |
 | Filament                     | ^5.0                          |
 | Livewire                     | ^3.5 (ships with Filament v5) |
-| Laravel AI SDK               | ^0.10.0 || ^0.11.0            |
+| Laravel AI SDK               | ^0.10.0 || ^0.11.0 || ^1.0    |
 | Spatie Laravel Package Tools | ^1.16                         |
 
 > **Note:** This package is built for **Filament v5** and **Livewire 3.5+** (as bundled with Filament v5). It leverages the official **Laravel AI SDK** (`laravel/ai`) for all AI operations.
@@ -220,6 +220,29 @@ OPENAI_API_KEY=your-api-key-here
 > has been removed — assets are now served entirely through Filament's asset pipeline. You can
 > safely delete the now-unused `public/vendor/filament-copilot/` directory, and remove any
 > `php artisan vendor:publish --tag=filament-copilot-assets` step from your deploy scripts.
+
+> **Upgrading to Laravel AI 1.x?** Filament Copilot supports both the `laravel/ai` 0.x and 1.x
+> lines. Laravel AI 1.0 changes its own conversation tables (`agent_conversation_messages` now
+> stores `steps` and `status` instead of `tool_calls`, `tool_results` and `approval_state`):
+>
+> - If you have already migrated those tables, add the backfill migration from
+>   [Laravel AI's upgrade guide](https://github.com/laravel/ai/blob/main/UPGRADE.md#conversation-messages-now-store-steps)
+>   and run `php artisan migrate` before deploying. **Back up your database first**: the backfill
+>   drops the old columns and has no `down()` method. Resolve any tool approvals still waiting for a
+>   decision first — paused turns cannot be resumed after the backfill.
+> - Do **not** re-run `vendor:publish --tag=filament-copilot-ai-migrations` — or
+>   `php artisan filament-copilot:install`, which publishes the same tag — for this: the
+>   publisher gives the migration a fresh timestamp, so it would add a second
+>   `create_agent_conversations_table` migration that fails against the existing tables.
+> - Laravel AI 1.0 conflicts with `laravel/mcp` below 1.0 (pulled in by Laravel Boost, among
+>   others) — update that alongside it.
+> - Token counts are higher for the same traffic: on 1.x, input tokens include cached input and
+>   output tokens include reasoning, and Filament Copilot records those totals.
+> - On 1.x, a resume that rejects a tool without a reason (as the chat's Reject button does) ends
+>   the run without calling the model again. That request writes no `message_sent` /
+>   `response_received` audit-log rows (0.x writes both), and its token-usage row — recorded when
+>   rate limiting is enabled — shows 0 input and 0 output tokens. The decisions themselves are
+>   still stored on the tool calls.
 
 ---
 

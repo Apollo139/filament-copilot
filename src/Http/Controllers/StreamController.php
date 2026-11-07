@@ -65,7 +65,10 @@ class StreamController
         /** @var RateLimitService $rateLimitService */
         $rateLimitService = app(RateLimitService::class);
 
-        if (! $decisions && config('filament-copilot.rate_limits.enabled') && ! $rateLimitService->canSendMessage($user, $panelId, $tenant)) {
+        // Resumes are checked too: laravel/ai 1.x executes an approved tool
+        // before the agent middleware runs, so RateLimitMiddleware alone
+        // would only reject the request after the tool had already run.
+        if (config('filament-copilot.rate_limits.enabled') && ! $rateLimitService->canSendMessage($user, $panelId, $tenant)) {
             return $this->sseResponse(function () {
                 $this->sendSseEvent('error', ['message' => __('filament-copilot::filament-copilot.rate_limit_exceeded')]);
                 $this->sendSseEvent('done', []);
@@ -198,6 +201,12 @@ class StreamController
                             ]);
                         }
                     } elseif ($event instanceof \Laravel\Ai\Streaming\Events\ToolResult) {
+                        // laravel/ai 1.x streams a sub-agent's progress as
+                        // preliminary results ahead of the final one.
+                        if ($event->preliminary ?? false) {
+                            continue;
+                        }
+
                         $rawResult = is_string($event->toolResult->result) ? $event->toolResult->result : json_encode($event->toolResult->result);
 
                         $this->sendSseEvent('tool_result', [
@@ -277,6 +286,8 @@ class StreamController
                     $usage = $streamResponse->usage;
                 }
 
+                [$inputTokens, $outputTokens] = $this->tokenCounts($usage);
+
                 $sdkConversationId ??= $streamResponse->conversationId;
 
                 if ($sdkConversationId) {
@@ -291,8 +302,8 @@ class StreamController
                 $assistantMessage = $conversationManager->addAssistantMessage(
                     conversation: $conversation,
                     content: $responseText,
-                    inputTokens: $usage->promptTokens ?? 0,
-                    outputTokens: $usage->completionTokens ?? 0,
+                    inputTokens: $inputTokens,
+                    outputTokens: $outputTokens,
                 );
 
                 // Record token usage
@@ -300,8 +311,8 @@ class StreamController
                     $rateLimitService->recordTokenUsage(
                         user: $user,
                         panelId: $panelId,
-                        inputTokens: $usage->promptTokens ?? 0,
-                        outputTokens: $usage->completionTokens ?? 0,
+                        inputTokens: $inputTokens,
+                        outputTokens: $outputTokens,
                         tenant: $tenant,
                         conversationId: $conversation->id,
                         model: $model,
@@ -312,13 +323,13 @@ class StreamController
                 event(new CopilotResponseReceived(
                     $conversation,
                     $assistantMessage,
-                    $usage->promptTokens ?? 0,
-                    $usage->completionTokens ?? 0,
+                    $inputTokens,
+                    $outputTokens,
                 ));
 
                 $this->sendSseEvent('usage', [
-                    'input_tokens' => $usage->promptTokens ?? 0,
-                    'output_tokens' => $usage->completionTokens ?? 0,
+                    'input_tokens' => $inputTokens,
+                    'output_tokens' => $outputTokens,
                 ]);
 
                 // The persisted assistant message id lets the chat component
@@ -348,6 +359,22 @@ class StreamController
                 $this->sendSseEvent('done', []);
             }
         });
+    }
+
+    /**
+     * Read the input and output token counts from the run's usage.
+     *
+     * laravel/ai 1.x renamed Usage::$promptTokens / $completionTokens to
+     * $inputTokens / $outputTokens; read whichever the installed version has.
+     *
+     * @return array{0: int, 1: int}
+     */
+    protected function tokenCounts(?object $usage): array
+    {
+        return [
+            (int) ($usage->inputTokens ?? $usage->promptTokens ?? 0),
+            (int) ($usage->outputTokens ?? $usage->completionTokens ?? 0),
+        ];
     }
 
     protected function sseResponse(callable $callback): StreamedResponse

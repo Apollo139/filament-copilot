@@ -12,7 +12,6 @@ use Illuminate\Http\Request;
 use Laravel\Ai\Responses\Data\ToolCall as ToolCallData;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\ToolResult as ToolResultData;
-use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StreamableAgentResponse;
 use Laravel\Ai\Streaming\Events\StreamEnd;
 use Laravel\Ai\Streaming\Events\TextDelta;
@@ -127,7 +126,7 @@ function makeToolCallStreamResponse(bool $successful = true, mixed $result = 'To
                 $timestamp + 2,
             );
             yield new TextDelta('event-4', 'assistant-message-1', ' Done.', $timestamp + 3);
-            yield new StreamEnd('event-5', 'stop', new Usage(promptTokens: 12, completionTokens: 34), $timestamp + 4);
+            yield new StreamEnd('event-5', 'stop', streamUsage(12, 34), $timestamp + 4);
         },
         meta: new Meta(provider: 'openai', model: 'gpt-4o'),
     );

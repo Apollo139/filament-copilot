@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace EslamRedaDiv\FilamentCopilot\Agent\Middleware;
 
 use Closure;
+use EslamRedaDiv\FilamentCopilot\Agent\Middleware\Concerns\RunsOncePerPrompt;
 use EslamRedaDiv\FilamentCopilot\Enums\AuditAction;
 use EslamRedaDiv\FilamentCopilot\Models\CopilotAuditLog;
 use EslamRedaDiv\FilamentCopilot\Models\CopilotConversation;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Ai\PendingStep;
 use Laravel\Ai\Prompts\AgentPrompt;
 
 class AuditMiddleware
 {
+    use RunsOncePerPrompt;
+
     public function __construct(
         protected string $panelId,
         protected Model $user,
@@ -27,9 +31,9 @@ class AuditMiddleware
         return $this;
     }
 
-    public function handle(AgentPrompt $prompt, Closure $next): mixed
+    public function handle(AgentPrompt|PendingStep $prompt, Closure $next): mixed
     {
-        if (! config('filament-copilot.audit.enabled', true)) {
+        if (! $this->shouldHandle($prompt) || ! config('filament-copilot.audit.enabled', true)) {
             return $next($prompt);
         }
 

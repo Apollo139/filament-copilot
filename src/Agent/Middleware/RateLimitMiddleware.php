@@ -5,22 +5,26 @@ declare(strict_types=1);
 namespace EslamRedaDiv\FilamentCopilot\Agent\Middleware;
 
 use Closure;
+use EslamRedaDiv\FilamentCopilot\Agent\Middleware\Concerns\RunsOncePerPrompt;
 use EslamRedaDiv\FilamentCopilot\Events\CopilotRateLimitExceeded;
 use EslamRedaDiv\FilamentCopilot\Services\RateLimitService;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Ai\PendingStep;
 use Laravel\Ai\Prompts\AgentPrompt;
 
 class RateLimitMiddleware
 {
+    use RunsOncePerPrompt;
+
     public function __construct(
         protected string $panelId,
         protected Model $user,
         protected ?Model $tenant = null,
     ) {}
 
-    public function handle(AgentPrompt $prompt, Closure $next): mixed
+    public function handle(AgentPrompt|PendingStep $prompt, Closure $next): mixed
     {
-        if (! config('filament-copilot.rate_limits.enabled', false)) {
+        if (! $this->shouldHandle($prompt) || ! config('filament-copilot.rate_limits.enabled', false)) {
             return $next($prompt);
         }
 
